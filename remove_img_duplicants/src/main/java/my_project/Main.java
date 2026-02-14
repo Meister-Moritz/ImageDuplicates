@@ -26,8 +26,8 @@ public class Main {
     public static int delCount = 0;
 
     public static void main(String[] args)throws Exception {
-        // String[] testArgs = {"/mnt/Sata-SSD/Rule22/contentData2/original", "5"};
-        // args = testArgs;
+        String[] testArgs = {"/mnt/Sata-SSD/Rule22/contentData2/test", "5"};
+        args = testArgs;
         readArgs(args);
         System.out.println("Processing...");
         HashingAlgorithm hasher = new PerceptiveHash(64);
@@ -89,8 +89,8 @@ public class Main {
             ImageInfo oldInfo = imageMap.get(imgHash);
 
             //Preserve deepest Folder structure
-            int fileDepth = countChars(file.getAbsolutePath(), File.pathSeparatorChar);
-            int oldFileDepth = countChars(oldInfo.file.getAbsolutePath(), File.pathSeparatorChar);
+            int fileDepth = countChars(file.getAbsolutePath(), File.separatorChar);
+            int oldFileDepth = countChars(oldInfo.file.getAbsolutePath(), File.separatorChar);
             if(fileDepth<= oldFileDepth){
                 file.delete();
             }
