@@ -8,36 +8,59 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
 import javax.imageio.ImageIO;
 
 import io.github.ksshim.jimagehash.hash.Hash;
+import io.github.ksshim.jimagehash.hashAlgorithms.AverageColorHash;
+import io.github.ksshim.jimagehash.hashAlgorithms.AverageHash;
 import io.github.ksshim.jimagehash.hashAlgorithms.HashingAlgorithm;
 import io.github.ksshim.jimagehash.hashAlgorithms.PerceptiveHash;
+import io.github.ksshim.jimagehash.hashAlgorithms.RotPHash;
 import my_project.CustomTypes.ImageInfo;
 
+
+// import io.github.ksshim.jimagehash.hashAlgorithms.PerceptiveHash;
+// import io.github.ksshim.jimagehash.hashAlgorithms.AverageHash;
+// import io.github.ksshim.jimagehash.hashAlgorithms.RotPHash;
+// import io.github.ksshim.jimagehash.hashAlgorithms.AverageColorHash;
+
 public class Main {
-    public static double hammingDist = 5;
+    public static double hammingDist = 0.2;
     public static int maxIDUsed = 0;
     public static Map<Hash, ImageInfo> imageMap = new HashMap<>();
+    public static Map<Integer, List<Hash>> groupMap = new HashMap<>();
     public static File topFolder;
     public static int delCount = 0;
 
     public static void main(String[] args)throws Exception {
-        // String[] testArgs = {"/mnt/Sata-SSD/Rule22/contentData2/test", "5"};
-        // args = testArgs;
+        String[] testArgs = {"/mnt/Sata-SSD/PicsDB_old/Backend/contentData/test2", "0.33"};
+        args = testArgs;
         readArgs(args);
         System.out.println("Processing...");
-        HashingAlgorithm hasher = new PerceptiveHash(64);
+
+        HashingAlgorithm pHasher = new PerceptiveHash(64);
+        HashingAlgorithm aHasher = new AverageHash(64);
+        HashingAlgorithm rHasher = new RotPHash(64);
+        HashingAlgorithm cHasher = new AverageColorHash(64);
+
         Stream<Path> filStream = Files.walk(topFolder.toPath());
         Iterator<Path> iter = filStream.iterator();
         iter.next(); //First element is always the root folder
-
+        // List<File> testList = new LinkedList<>();
+        // testList.add(new File("/mnt/Sata-SSD/PicsDB_old/Backend/contentData/test/a.png"));
+        // testList.add(new File("/mnt/Sata-SSD/PicsDB_old/Backend/contentData/test/b.webp"));
+        // testList.add(new File("/mnt/Sata-SSD/PicsDB_old/Backend/contentData/test/c.webp"));
+        // testList.add(new File("/mnt/Sata-SSD/PicsDB_old/Backend/contentData/test/d.webp"));
+        
         while (iter.hasNext()) {
             File file =  iter.next().toFile();
-            if(!isImage(file)) continue;
+        // for(File file : testList){
+           if(!isImage(file)) continue;
             BufferedImage img;
             try {
                 img = ImageIO.read(file);
@@ -47,8 +70,12 @@ public class Main {
                 continue;
             }
                         
-            Hash imgHash = hasher.hash(img);
-            handleImage(file, imgHash);
+            Hash pHash = pHasher.hash(img);
+            Hash aHash = aHasher.hash(img);
+            Hash rHash = rHasher.hash(img);
+            Hash cHash = cHasher.hash(img);
+            ImageInfo imgInfo = new ImageInfo(file, -1, pHash, aHash, rHash, cHash);
+            handleImage(imgInfo);
         }
         filStream.close();
 
@@ -78,46 +105,75 @@ public class Main {
             try {
                 hammingDist = Double.parseDouble(args[1].replace(',', '.'));
             } catch (Exception e) {
-                throw new IllegalArgumentException("second parameter provided is not a Double: " + args[1]);
+                throw new IllegalArgumentException("second parameter provided is not an Integer: " + args[1]);
             }
         }
     }
 
-    private static void handleImage(File file, Hash imgHash) {
-        boolean editNewImg = false;
-        if(imageMap.containsKey(imgHash)){
-            ImageInfo oldInfo = imageMap.get(imgHash);
+    private static void handleImage(ImageInfo imgInfo) {
+        //delte duplicant
+        boolean isExactDuplicant = handleDuplicant(imgInfo);
+        if(isExactDuplicant) return;
+        handleSimilar(imgInfo);
+    }
+
+    private static void handleSimilar(ImageInfo newImgInfo) {
+
+        for(Hash oldHash : imageMap.keySet()){
+            ImageInfo oldImgInfo = imageMap.get(oldHash);
+            if(myHammingDistance(oldImgInfo, newImgInfo) <= hammingDist){
+                if(newImgInfo.groupID == -1){
+                    newImgInfo = newSimilarImg(newImgInfo, oldImgInfo);
+                }
+                else{
+                    newImgInfo = updateSimilarImg(oldImgInfo, newImgInfo);
+                }
+            }
+        }
+
+        imageMap.put(newImgInfo.pHash, newImgInfo);
+        if(newImgInfo.groupID != -1){
+            groupMap.get(newImgInfo.groupID).add(newImgInfo.pHash);
+        }
+        
+
+    }
+
+    private static double myHammingDistance(ImageInfo oldImgInfo, ImageInfo newImgInfo) {
+        double pDistance = newImgInfo.pHash.normalizedHammingDistance(oldImgInfo.pHash);
+        double aDistance = newImgInfo.aHash.normalizedHammingDistance(oldImgInfo.aHash);
+        double rDistance = newImgInfo.rHash.normalizedHammingDistance(oldImgInfo.rHash);
+        double cDistance = newImgInfo.cHash.normalizedHammingDistance(oldImgInfo.cHash);
+
+        double pWeight = 0.6;
+        double aWeight = 1;
+        double rWeight = 0.4;
+        double cWeight = 0.1;
+
+        double result = (pDistance * pWeight) + (aDistance * aWeight) + (rDistance * rWeight) + (cDistance * cWeight);
+        result = result/(pWeight + aWeight + rWeight + cWeight);
+
+        return result;
+    }
+
+    private static boolean handleDuplicant(ImageInfo newImgInfo) {
+        if(imageMap.containsKey(newImgInfo.pHash)){
+            ImageInfo oldImgInfo = imageMap.get(newImgInfo.pHash);
 
             //Preserve deepest Folder structure
-            int fileDepth = countChars(file.getAbsolutePath(), File.separatorChar);
-            int oldFileDepth = countChars(oldInfo.file.getAbsolutePath(), File.separatorChar);
+            int fileDepth = countChars(newImgInfo.file.getAbsolutePath(), File.separatorChar);
+            int oldFileDepth = countChars(oldImgInfo.file.getAbsolutePath(), File.separatorChar);
             if(fileDepth<= oldFileDepth){
-                file.delete();
+                newImgInfo.file.delete();
             }
             else{
-                imageMap.replace(imgHash, new ImageInfo(file, oldInfo.groupID));
-                oldInfo.file.delete();
+                imageMap.replace(newImgInfo.pHash, newImgInfo);
+                oldImgInfo.file.delete();
             }
             delCount++;
-            return;
+            return true;
         }
-        Map<Hash, ImageInfo> newEntrys = new HashMap<>();
-        for(Hash hashKey : imageMap.keySet()){
-            if(hashKey.hammingDistance(imgHash) <= hammingDist){
-                handleSimilar(imgHash, file, hashKey, editNewImg, newEntrys);
-                editNewImg = true;
-            }
-            
-        }
-        if(newEntrys.isEmpty()){
-            imageMap.put(imgHash, new ImageInfo(file, -1));
-        }
-        else{
-            imageMap.putAll(newEntrys);
-        }
-        
-        
-
+        return false;
     }
 
     private static int countChars(String string, char matchC) {
@@ -128,18 +184,39 @@ public class Main {
         return count;
     }
 
-    private static void handleSimilar(Hash newHash, File newfile, Hash matchingHash, boolean editNewImg,Map<Hash, ImageInfo> newEntrys) {
-        ImageInfo oldImgInfo = imageMap.get(matchingHash);
+
+    private static ImageInfo newSimilarImg(ImageInfo newImgInfo, ImageInfo oldImgInfo) {
         if(oldImgInfo.groupID == -1){
             maxIDUsed++;
             oldImgInfo.groupID = maxIDUsed;
+            groupMap.putIfAbsent(oldImgInfo.groupID, new LinkedList<>());
+            groupMap.get(oldImgInfo.groupID).add(oldImgInfo.pHash);
         }
-        
-        if(!editNewImg){
-            newEntrys.put(newHash, new ImageInfo(newfile, oldImgInfo.groupID));
-        }
+        newImgInfo.groupID = oldImgInfo.groupID;
+        return newImgInfo;
     }
 
+    private static ImageInfo updateSimilarImg(ImageInfo oldImgInfo, ImageInfo newImgInfo) {
+        if(oldImgInfo.groupID == -1){
+            oldImgInfo.groupID = newImgInfo.groupID;
+            groupMap.get(oldImgInfo.groupID).add(oldImgInfo.pHash);
+        }
+        else if(oldImgInfo.groupID != newImgInfo.groupID){
+            int newGroup = mergeGroups(oldImgInfo.groupID, newImgInfo.groupID);
+            newImgInfo.groupID = newGroup;
+        }
+        return newImgInfo;
+    }
+
+    private static int mergeGroups(int id1, int id2) {
+        List<Hash> affectedHashes = groupMap.get(id2);
+        for(Hash affHash : affectedHashes){
+            imageMap.get(affHash).groupID = id1;
+        }
+        groupMap.get(id1).addAll(affectedHashes);
+        groupMap.remove(id2);
+        return id1;
+    }
 
     private static void moveImage(File file, String relativePath, int groupID) {
         String newFolder  = topFolder.getAbsolutePath() + File.separatorChar + "similar" + File.separatorChar + groupID + File.separatorChar;
