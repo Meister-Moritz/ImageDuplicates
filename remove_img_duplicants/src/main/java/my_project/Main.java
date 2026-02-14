@@ -38,8 +38,8 @@ public class Main {
     public static int delCount = 0;
 
     public static void main(String[] args)throws Exception {
-        String[] testArgs = {"/mnt/Sata-SSD/PicsDB_old/Backend/contentData/test2", "0.33"};
-        args = testArgs;
+        // String[] testArgs = {"/mnt/Sata-SSD/PicsDB_old/Backend/contentData/test2", "0.33"};
+        // args = testArgs;
         readArgs(args);
         System.out.println("Processing...");
 
