@@ -8,7 +8,6 @@ Supported Formats are: .png, .jpg, .jpeg, .webp
 
 ## How to use:
 1. Download newest version in ./build
-2. Extract
 3. Run java -jar remove_img_duplicants__2026_02_14.jar /folderPath [hammingDistance].
     - /folderPath is the path to the folder your images are in.
     - hammingDistance defines the threshold for images to be considered similar.
