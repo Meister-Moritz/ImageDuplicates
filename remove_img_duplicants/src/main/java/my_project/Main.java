@@ -26,8 +26,8 @@ public class Main {
     public static int delCount = 0;
 
     public static void main(String[] args)throws Exception {
-        String[] testArgs = {"/mnt/Sata-SSD/Rule22/contentData2/test", "5"};
-        args = testArgs;
+        // String[] testArgs = {"/mnt/Sata-SSD/Rule22/contentData2/test", "5"};
+        // args = testArgs;
         readArgs(args);
         System.out.println("Processing...");
         HashingAlgorithm hasher = new PerceptiveHash(64);
